@@ -98,7 +98,7 @@ async def generate_sql(query: Query):
         model="llama3-70b-8192",
         messages=[{
             "role": "system", 'content':'You are a SQL assistant',
-            "content": f"{schema_text}\nConvert this question to SQL (PostgreSQL syntax): {query.query}\nReturn only the SQL query."
+            "content": f"{schema_text}\nConvert this question to SQL (PostgreSQL syntax): {query.query}\nReturn only the SQL query.Write SQL without using markdown or code fences. Just give me the plain SQL."
         }],
         temperature=0,
         top_p=1,
