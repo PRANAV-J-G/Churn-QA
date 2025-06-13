@@ -12,6 +12,7 @@ from langchain.schema import Document
 from RAG_BONUS import skeleton_query, qa
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from load_embeddings_BONUS import *
 from langchain.llms import openai
 import openai
 
