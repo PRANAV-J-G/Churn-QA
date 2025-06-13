@@ -2,11 +2,11 @@ import os
 from langchain.chains import RetrievalQA
 from langchain.llms import OpenAI
 from load_embeddings_BONUS import load_qdrant_client, get_vector_store
+from langchain_community.query_constructors.qdrant import QdrantTranslator
 from dotenv import load_dotenv
 
 from langchain.chains.query_constructor.base import AttributeInfo
 from langchain.retrievers.self_query.base import SelfQueryRetriever
-from langchain.retrievers.self_query.qdrant import QdrantTranslator
 
 load_dotenv()
 

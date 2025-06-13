@@ -4,22 +4,26 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 import numpy as np
 import os
-import mysql.connector
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from openai import OpenAI
 from dotenv import load_dotenv
 from langchain.schema import Document
 from RAG_BONUS import skeleton_query, qa
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain.llms import openai
+import openai
 
 app = FastAPI()
 load_dotenv()
 
-
 class ChurnDatabaseSetup:
     def __init__(self, host: str = "localhost",
-                 user: str = "root",
-                 password: str = os.getenv('MYSQL_PASS'),
-                 port: int = 3306):
-        self.connection = mysql.connector.connect(
+                 user: str = "postgres",
+                 password: str = os.getenv('POSTGRES_PASS'),
+                 port: int = 5432):
+        self.connection = psycopg2.connect(
             host=host,
             user=user,
             password=password,
@@ -33,48 +37,50 @@ class ChurnDatabaseSetup:
         if hasattr(self, 'connection') and self.connection:
             self.connection.close()
             
-
 model = load_model(os.path.join('models','NeuralNetwork.keras'))
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
+client = OpenAI(
+    api_key=os.getenv("GROQ_API"),
+    base_url='https://api.groq.com/openai/v1'
+)
 
 class ChurnFeatures(BaseModel):
     features: list
 
 @app.post("/predict")
 async def predict(data: ChurnFeatures):
-    
     prediction = model.predict(np.array([data.features]))
     return {"prediction": float(prediction[0][0])}
-
 
 class Query(BaseModel):
     query: str
 
 DB_CONFIG = {
     'host': 'localhost',
-    'user': 'root',
-    'password': os.getenv('MYSQL_PASS'),
-    'database': 'churn'
+    'user': 'postgres',
+    'password': os.getenv('POSTGRES_PASS'),
+    'database': 'churn',
+    'port': 5432
 }
 
 def get_schema() -> Dict:
-    with mysql.connector.connect(**DB_CONFIG) as conn:
-        with conn.cursor(dictionary=True) as cursor:
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute("""
-                SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE 
-                FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_SCHEMA = %s
-                ORDER BY TABLE_NAME
+                SELECT table_name, column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' AND table_catalog = %s
+                ORDER BY table_name
             """, (DB_CONFIG['database'],))
             
             schema = {}
             for row in cursor.fetchall():
-                table = row['TABLE_NAME']
+                table = row['table_name']
                 if table not in schema:
                     schema[table] = []
                 schema[table].append({
-                    'column': row['COLUMN_NAME'],
-                    'type': row['DATA_TYPE']
+                    'column': row['column_name'],
+                    'type': row['data_type']
                 })
             return schema
 
@@ -88,33 +94,37 @@ async def generate_sql(query: Query):
             schema_text += f"- {col['column']} ({col['type']})\n"
 
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="llama3-70b-8192",
         messages=[{
-            "role": "user",
-            "content": f"{schema_text}\nConvert this question to SQL: {query.query}\nReturn only the SQL query."
+            "role": "system", 'content':'You are a SQL assistant',
+            "content": f"{schema_text}\nConvert this question to SQL (PostgreSQL syntax): {query.query}\nReturn only the SQL query."
         }],
-        temperature=0
+        temperature=0,
+        top_p=1,
     )
     
     sql = response.choices[0].message.content.strip()
     
     try:
-        with mysql.connector.connect(**DB_CONFIG) as conn:
-            with conn.cursor(dictionary=True) as cursor:  # Use dictionary cursor
+        with psycopg2.connect(**DB_CONFIG) as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(sql)
-                results = cursor.fetchall()  # Fetch all rows
+                results = cursor.fetchall()  # Fetch all rows as dictionaries
                 # Get column names from cursor description
                 columns = [column[0] for column in cursor.description] if cursor.description else []
+                
+                # Convert RealDictRow objects to regular dictionaries
+                results_list = [dict(row) for row in results]
                 
         return {
             "sql": sql, 
             "status": "success",
-            "results": results,  # List of dictionary rows
+            "results": results_list,  # List of dictionary rows
             "columns": columns   # List of column names
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail={"error": str(e), "sql": sql})
-    
+
 class QueryRequest(BaseModel):
     query: str
 
@@ -171,3 +181,7 @@ async def process_rag_query(request: QueryRequest):
             detail=f"Error processing query: {str(e)}"
         )
 
+# Add this to run the server directly
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
