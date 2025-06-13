@@ -11,10 +11,9 @@ from dotenv import load_dotenv
 from langchain.schema import Document
 from RAG_BONUS import skeleton_query, qa
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.embeddings import HuggingFaceEmbeddings  # Changed from OpenAI
 from load_embeddings_BONUS import *
-from langchain.llms import openai
-import openai
+# Removed deprecated imports
 
 app = FastAPI()
 load_dotenv()
@@ -38,8 +37,9 @@ class ChurnDatabaseSetup:
         if hasattr(self, 'connection') and self.connection:
             self.connection.close()
             
-model = load_model(os.path.join('models','NeuralNetwork.keras'))
+model = load_model(os.path.join('models','NeuralNetwork.h5'))
 
+# Groq client setup
 client = OpenAI(
     api_key=os.getenv("GROQ_API"),
     base_url='https://api.groq.com/openai/v1'
@@ -97,8 +97,8 @@ async def generate_sql(query: Query):
     response = client.chat.completions.create(
         model="llama3-70b-8192",
         messages=[{
-            "role": "system", 'content':'You are a SQL assistant',
-            "content": f"{schema_text}\nConvert this question to SQL (PostgreSQL syntax): {query.query}\nReturn only the SQL query.Write SQL without using markdown or code fences. Just give me the plain SQL."
+            "role": "system", 
+            "content": f"You are a SQL assistant. {schema_text}\nConvert this question to SQL (PostgreSQL syntax): {query.query}\nReturn only the SQL query. Write SQL without using markdown or code fences. Just give me the plain SQL."
         }],
         temperature=0,
         top_p=1,

@@ -49,7 +49,7 @@ uvicorn backend:app --reload --port 8000
 ```bash 
 streamlit run app.py
 ```
-### 3.Setup your env\
+### 3.Setup your env
 
 ```bash
 POSTGRES_PASS=your_password
@@ -59,5 +59,13 @@ OPENAI_API_KEY=your_openai_key
 GROQ_API=your_groq_key
 ```
 
-
-
+## Screenshots
+### Main page
+![App Screnshot](Screens/Screenshot_20250613_231721.png)
+### Model Predictions
+![App Screenshot](Screens/Screenshot_20250613_231739.png)
+### Natural language to SQL query 
+![App Screenshots](Screens/Screenshot_20250613_231839.png)
+![App Screenshots](Screens/Screenshot_20250613_231824.png)
+### Document Retrieval 
+![App Screenshots](Screens/Screenshot_20250613_231929.png)
